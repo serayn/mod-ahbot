@@ -713,6 +713,7 @@ void AuctionHouseBot::addNewAuctionBuyerBotBid(Player *AHBplayer, AHBConfig *con
 
 void AuctionHouseBot::Update()
 {
+ 
     time_t _newrun = time(NULL);
     if ((!AHBSeller) && (!AHBBuyer))
         return;
@@ -757,6 +758,7 @@ void AuctionHouseBot::Update()
 
 void AuctionHouseBot::Initialize()
 {
+    sLog->outError("AuctionHouseBot: Initialize");
     std::string disabledItems = sConfigMgr->GetStringDefault("AuctionHouseBot.DisabledItems", "");
     DisableItemStore.clear();
     Tokenizer tokens(disabledItems, ' ');
@@ -1896,3 +1898,4 @@ void AuctionHouseBot::LoadValues(AHBConfig *config)
     }
 	if (debug_Out) sLog->outError( "End Settings for %s Auctionhouses:", WorldDatabase.PQuery("SELECT name FROM auctionhousebot WHERE auctionhouse = %u", config->GetAHID())->Fetch()->GetCString());
 }
+
