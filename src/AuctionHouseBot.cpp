@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-
+#pragma execution_character_set("UTF-8")
 #include "ObjectMgr.h"
 #include "AuctionHouseMgr.h"
 #include "AuctionHouseBot.h"
@@ -24,6 +24,7 @@
 #include "Player.h"
 #include "WorldSession.h"
 #include <vector>
+#include "..\mod-custom-serayn\src\custom_shared_defines.h"
 
 using namespace std;
 vector<uint32> npcItems;
@@ -42,6 +43,127 @@ vector<uint32> blueItemsBin;
 vector<uint32> purpleItemsBin;
 vector<uint32> orangeItemsBin;
 vector<uint32> yellowItemsBin;
+static uint32 TotalBids[3];
+uint32 GetAmplify(ItemTemplate const* prototype)
+{
+    uint32 amplify = 1;
+    if (
+        (prototype->Class == 0 && prototype->SubClass == 7) ||  //绷带
+        (prototype->Class == 0 && prototype->SubClass == 5)     //食物
+        )
+    {
+        amplify = 20;
+    }
+    else if (
+        (prototype->Class == 0 && prototype->SubClass == 1) ||  //药水
+        (prototype->Class == 0 && prototype->SubClass == 2) ||  //药剂
+        (prototype->Class == 0 && prototype->SubClass == 4) ||  //卷轴
+        (prototype->Class == 7 && prototype->SubClass == 1) ||  //零件
+        (prototype->Class == 7 && prototype->SubClass == 2) ||  //爆炸物
+        (prototype->Class == 7 && prototype->SubClass == 3) ||  //装置
+        (prototype->Class == 7 && prototype->SubClass == 4) ||  //珠宝
+        (prototype->Class == 7 && prototype->SubClass == 14) || //护甲强化
+        (prototype->Class == 7 && prototype->SubClass == 15) || //武器强化
+        (prototype->Class == 3) ||                              //珠宝
+        (prototype->Class == 1)                                 //专业容器
+        )
+    {
+        amplify = 28;
+    }
+    else if (
+        (prototype->Class == 1 && prototype->SubClass == 0) ||  //包
+        (prototype->Class == 2) ||                              //武器
+        (prototype->Class == 4)                                 //护甲
+        )
+    {
+        amplify = 40;
+    }
+    else if (
+        (prototype->Class == 0 && prototype->SubClass == 3)     //合剂
+        )
+    {
+        amplify = 90;
+    }
+    else if (
+        (prototype->Class == 7 && prototype->SubClass == 0) ||  //商品
+        (prototype->Class == 7 && prototype->SubClass == 5) ||  //布
+        (prototype->Class == 7 && prototype->SubClass == 8) ||  //肉
+        (prototype->Class == 7 && prototype->SubClass == 10) || //元素
+        (prototype->Class == 7 && prototype->SubClass == 13)    //原料
+        )
+    {
+        amplify = 5;
+    }
+    else if (
+        (prototype->Class == 7 && prototype->SubClass == 6) ||  //皮革
+        (prototype->Class == 7 && prototype->SubClass == 7) ||  //矿物
+        (prototype->Class == 7 && prototype->SubClass == 9)     //草药
+        )
+    {
+        amplify = 8;
+    }
+    else if (
+        (prototype->Class == 7 && prototype->SubClass == 12)    //附魔
+        )
+    {
+        amplify = 10;
+    }
+    return amplify;
+}
+uint32 GetPossibility(ItemTemplate const* prototype)
+{
+    uint32 amplify = 0;
+    if (
+        (prototype->Class == 0 && prototype->SubClass == 5)     //食物
+        ||
+        (prototype->Class == 0 && prototype->SubClass == 7) ||  //绷带
+        (prototype->Class == 0 && prototype->SubClass == 1) ||  //药水
+        (prototype->Class == 0 && prototype->SubClass == 2) ||  //药剂
+        (prototype->Class == 0 && prototype->SubClass == 4) ||  //卷轴
+        (prototype->Class == 7 && prototype->SubClass == 2) ||  //爆炸物
+        (prototype->Class == 7 && prototype->SubClass == 4) ||  //珠宝
+        (prototype->Class == 3)                                 //珠宝
+        )
+    {
+        amplify = 65;
+    }
+    else if (
+        (prototype->Class == 7 && prototype->SubClass == 14) || //护甲强化
+        (prototype->Class == 7 && prototype->SubClass == 15) || //武器强化
+        (prototype->Class == 1 && prototype->SubClass == 0) ||  //包
+        (prototype->Class == 2) ||                              //武器
+        (prototype->Class == 4) ||                              //护甲
+        (prototype->Class == 1)                                 //专业容器
+        )
+    {
+        amplify = 40;
+    }
+    else if (
+        (prototype->Class == 0 && prototype->SubClass == 3)     //合剂
+        )
+    {
+        amplify = 85;
+    }
+    else if (
+        (prototype->Class == 7 && prototype->SubClass == 1) ||  //零件
+        (prototype->Class == 7 && prototype->SubClass == 3) ||  //装置
+        (prototype->Class == 7 && prototype->SubClass == 0) ||  //商品
+        (prototype->Class == 7 && prototype->SubClass == 5) ||  //布
+        (prototype->Class == 7 && prototype->SubClass == 8) ||  //肉
+        (prototype->Class == 7 && prototype->SubClass == 10) || //元素
+        (prototype->Class == 7 && prototype->SubClass == 13)    //原料
+        ||
+        (prototype->Class == 7 && prototype->SubClass == 6) ||  //皮革
+        (prototype->Class == 7 && prototype->SubClass == 7) ||  //矿物
+        (prototype->Class == 7 && prototype->SubClass == 9)     //草药
+        ||
+        (prototype->Class == 7 && prototype->SubClass == 12)    //附魔
+        )
+    {
+        amplify = 100;
+    }
+    return amplify;
+}
 
 AuctionHouseBot::AuctionHouseBot()
 {
@@ -374,8 +496,24 @@ void AuctionHouseBot::addNewAuctions(Player *AHBplayer, AHBConfig *config)
             uint64 buyoutPrice = 0;
             uint64 bidPrice = 0;
             uint32 stackCount = 1;
-
-            switch (SellMethod)
+            //sLog->outError("AuctionHouseBot::addNewAuctions, start, itemID = %u", itemID);
+            // Serayn本土化修改：修改价格评估方式
+            WorkShopOperations workshopOperator(AHBplayer, nullptr);
+            bool IsProduct = workshopOperator.IsProduct(prototype->ItemId);
+            //sLog->outError("AuctionHouseBot::addNewAuctions, after finding out IsProduct: %u",IsProduct);
+            bool IsMaterial = workshopOperator.IsMaterial(prototype->ItemId);
+           // sLog->outError("AuctionHouseBot::addNewAuctions, after finding out IsMaterial: %u", IsMaterial);
+            WorkShopItemList list;
+            if (IsProduct || IsMaterial)buyoutPrice = workshopOperator.GetProductPricebyItem(prototype->ItemId,list);
+            else
+            {
+                buyoutPrice = prototype->SellPrice;
+                buyoutPrice *= GetAmplify(prototype);
+               // sLog->outError("AuctionHouseBot::addNewAuctions, Neither Product Nor Material");
+            }
+            if(IsProduct)sLog->outError("AuctionHouseBot::addNewAuctions, buyoutprice for item %u is %u",itemID, buyoutPrice);
+            //sLog->outError("AuctionHouseBot::addNewAuctions, buyoutprice decided: %u", buyoutPrice);
+            /*switch (SellMethod)
             {
             case 0:
                 buyoutPrice  = prototype->SellPrice;
@@ -383,8 +521,9 @@ void AuctionHouseBot::addNewAuctions(Player *AHBplayer, AHBConfig *config)
             case 1:
                 buyoutPrice  = prototype->BuyPrice;
                 break;
-            }
-
+            }*/
+            
+            
             if (prototype->Quality <= AHB_MAX_QUALITY)
             {
                 if (config->GetMaxStack(prototype->Quality) > 1 && item->GetMaxStackCount() > 1)
@@ -393,10 +532,11 @@ void AuctionHouseBot::addNewAuctions(Player *AHBplayer, AHBConfig *config)
                     stackCount = urand(1, item->GetMaxStackCount());
                 else
                     stackCount = 1;
+                if (!IsProduct && !IsMaterial)
+                {
                 buyoutPrice *= urand(config->GetMinPrice(prototype->Quality), config->GetMaxPrice(prototype->Quality));
                 buyoutPrice /= 100;
-                bidPrice = buyoutPrice * urand(config->GetMinBidPrice(prototype->Quality), config->GetMaxBidPrice(prototype->Quality));
-                bidPrice /= 100;
+                }
             }
             else
             {
@@ -405,7 +545,9 @@ void AuctionHouseBot::addNewAuctions(Player *AHBplayer, AHBConfig *config)
                 item->RemoveFromUpdateQueueOf(AHBplayer);
                 continue;
             }
-
+           // sLog->outError("AuctionHouseBot::addNewAuctions, quantity decided");
+            // Serayn本土化修改：修改价格评估方式（结束）
+           // sLog->outError("AuctionHouseBot::addNewAuctions, end");
             uint32 etime = urand(1,3);
             switch(etime)
             {
@@ -517,7 +659,167 @@ void AuctionHouseBot::addNewAuctionBuyerBotBid(Player *AHBplayer, AHBConfig *con
     // Fetches content of selected AH
     AuctionHouseObject* auctionHouse =  sAuctionMgr->GetAuctionsMap(config->GetAHFID());
     vector<uint32> possibleBids;
+    //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, start");
+    do
+    {
+        //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, inside while");
+        // from auctionhousehandler.cpp, creates auction pointer & player pointer
+        AuctionEntry* auction = auctionHouse->GetAuction(result->Fetch()->GetUInt32());
+        if (!auction)
+            continue;
+        //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, auction loaded successfully");
+        // get exact item information
+        Item *pItem = sAuctionMgr->GetAItem(auction->item_guidlow);
+        if (!pItem)
+        {
+            if (debug_Out) sLog->outError("AHBuyer: Item %u doesn't exist, perhaps bought already?", auction->item_guidlow);
+            continue;
+        }
+        //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, pItem loaded successfully");
+        // get item prototype
+        ItemTemplate const* prototype = sObjectMgr->GetItemTemplate(auction->item_template);
+        //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, prototype loaded successfully");
+        // check which price we have to use, startbid or if it is bidded already
+        uint32 currentprice;
+        if (auction->bid)
+            currentprice = auction->bid;
+        else
+            currentprice = auction->startbid;
+        uint32 bidprice = currentprice + auction->GetAuctionOutBid();
+        //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, currentprice loaded successfully");
+        long double bidMax = 0;
+        // check that bid has acceptable value and take bid based on vendorprice, stacksize and quality
+        // Serayn本土化修改：修改价格评估方式
+        WorkShopOperations workshopOperator(AHBplayer, nullptr);
+        bool IsProduct = workshopOperator.IsProduct(prototype->ItemId);
+        bool IsMaterial = workshopOperator.IsMaterial(prototype->ItemId);
+        WorkShopItemList list;
+        if (IsProduct || IsMaterial)bidMax = workshopOperator.GetProductPricebyItem(prototype->ItemId,list) * pItem->GetCount();
+        else
+        {
+            if (prototype->Quality <= AHB_MAX_QUALITY)
+            {
+                if (currentprice < prototype->SellPrice * pItem->GetCount() /** config->GetBuyerPrice(prototype->Quality)*/)
+                    bidMax = prototype->SellPrice * pItem->GetCount() /** config->GetBuyerPrice(prototype->Quality)*/;
+                bidMax = config->GetMinPrice(prototype->Quality);
+                bidMax /= 100;
+            }
+            else
+            {
+                // quality is something it shouldn't be, let's get out of here
+                if (debug_Out) sLog->outError("AHBuyer: Quality %u not Supported", prototype->Quality);
+                continue;
+            }
+            bidMax *= GetAmplify(prototype);
+        }
+        // Serayn本土化修改：修改价格评估方式（结束）
+        // check some special items, and do recalculating to their prices
+        switch (prototype->Class)
+        {
+            // ammo
+        case 6:
+            bidMax = 0;
+            break;
+        default:
+            break;
+        }
+        if (bidMax == 0)
+        {
+            // quality check failed to get bidmax, let's get out of here
+            continue;
+        }
+       // sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, bidMax loaded successfully");
+        if (debug_Out)
+        {
+            sLog->outString("-------------------------------------------------");
+            sLog->outString("AHBuyer: Info for Auction #%u:", auction->Id);
+            sLog->outString("AHBuyer: AuctionHouse: %u", auction->GetHouseId());
+            sLog->outString("AHBuyer: Auctioneer: %u", auction->auctioneer);
+            sLog->outString("AHBuyer: Owner: %u", auction->owner);
+            sLog->outString("AHBuyer: Bidder: %u", auction->bidder);
+            sLog->outString("AHBuyer: Starting Bid: %u", auction->startbid);
+            sLog->outString("AHBuyer: Current Bid: %u", currentprice);
+            sLog->outString("AHBuyer: Buyout: %u", auction->buyout);
+            sLog->outString("AHBuyer: Deposit: %u", auction->deposit);
+            sLog->outString("AHBuyer: Expire Time: %u", uint32(auction->expire_time));
+            sLog->outString("AHBuyer: Bid Max: %Lf", bidMax);
+            sLog->outString("AHBuyer: Bid Price: %u", bidprice);
+            sLog->outString("AHBuyer: Item GUID: %u", auction->item_guidlow);
+            sLog->outString("AHBuyer: Item Template: %u", auction->item_template);
+            sLog->outString("AHBuyer: Item Info:");
+            sLog->outString("AHBuyer: Item ID: %u", prototype->ItemId);
+            sLog->outString("AHBuyer: Buy Price: %u", prototype->BuyPrice);
+            sLog->outString("AHBuyer: Sell Price: %u", prototype->SellPrice);
+            sLog->outString("AHBuyer: Bonding: %u", prototype->Bonding);
+            sLog->outString("AHBuyer: Quality: %u", prototype->Quality);
+            sLog->outString("AHBuyer: Item Level: %u", prototype->ItemLevel);
+            sLog->outString("AHBuyer: Ammo Type: %u", prototype->AmmoType);
+            sLog->outString("-------------------------------------------------");
+        }
+        
+        // Check whether we do normal bid, or buyout
+        if ((bidMax < auction->buyout) || (auction->buyout == 0))
+        {
+            if (bidMax < bidprice)
+            {
+                // Won't buy
+                continue;
+            }
+            else
+            {
+                // Consider bid
+                if (urand(0, 100) > GetPossibility(prototype))continue;
+                if (auction->bidder > 0)
+                {
+                    if (auction->bidder == AHBplayer->GetGUIDLow())
+                    {
+                        //pl->ModifyMoney(-int32(price - auction->bid));
+                    }
+                    else
+                    {
+                        // mail to last bidder and return money
+                        SQLTransaction trans = CharacterDatabase.BeginTransaction();
+                        sAuctionMgr->SendAuctionOutbiddedMail(auction, bidprice, session->GetPlayer(), trans);
+                        CharacterDatabase.CommitTransaction(trans);
+                        //pl->ModifyMoney(-int32(price));
+                    }
+                }
 
+                auction->bidder = AHBplayer->GetGUIDLow();
+                auction->bid = bidprice;
+
+                // Saving auction into database
+                CharacterDatabase.PExecute("UPDATE auctionhouse SET buyguid = '%u',lastbid = '%u' WHERE id = '%u'", auction->bidder, auction->bid, auction->Id);
+            }
+        }
+        else
+        {
+            // Consider buyout
+            if (urand(0, 100) > GetPossibility(prototype))continue;
+            SQLTransaction trans = CharacterDatabase.BeginTransaction();
+            //buyout
+            if ((auction->bidder) && (AHBplayer->GetGUIDLow() != auction->bidder))
+            {
+                sAuctionMgr->SendAuctionOutbiddedMail(auction, auction->buyout, session->GetPlayer(), trans);
+            }
+            auction->bidder = AHBplayer->GetGUIDLow();
+            auction->bid = auction->buyout;
+
+            // Send mails to buyer & seller
+            //sAuctionMgr->SendAuctionSalePendingMail(auction, trans);
+            sAuctionMgr->SendAuctionSuccessfulMail(auction, trans);
+            sAuctionMgr->SendAuctionWonMail(auction, trans);
+            auction->DeleteFromDB(trans);
+
+            sAuctionMgr->RemoveAItem(auction->item_guidlow);
+            auctionHouse->RemoveAuction(auction);
+            CharacterDatabase.CommitTransaction(trans);
+        }
+       // sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, decision made");
+    } while (result->NextRow());
+    //sLog->outError("AuctionHouseBot::addNewAuctionBuyerBotBid, end");
+    //return;
+    /*{
     do
     {
         uint32 tmpdata = result->Fetch()->GetUInt32();
@@ -571,6 +873,27 @@ void AuctionHouseBot::addNewAuctionBuyerBotBid(Player *AHBplayer, AHBConfig *con
         long double bidMax = 0;
 
         // check that bid has acceptable value and take bid based on vendorprice, stacksize and quality
+        // Serayn本土化修改：修改价格评估方式
+        WorkShopOperations workshopOperator(AHBplayer, nullptr);
+        bool IsProduct = workshopOperator.IsProduct(prototype->ItemId);
+        bool IsMaterial = workshopOperator.IsMaterial(prototype->ItemId);
+        if (IsProduct || IsMaterial)bidMax = workshopOperator.GetProductPricebyItem(prototype->ItemId) * pItem->GetCount();
+        else
+        {
+            if (prototype->Quality <= AHB_MAX_QUALITY)
+            {
+                if (currentprice < prototype->SellPrice * pItem->GetCount() * config->GetBuyerPrice(prototype->Quality))
+                    bidMax = prototype->SellPrice * pItem->GetCount() * config->GetBuyerPrice(prototype->Quality);
+            }
+            else
+            {
+                // quality is something it shouldn't be, let's get out of here
+                if (debug_Out) sLog->outError("AHBuyer: Quality %u not Supported", prototype->Quality);
+                continue;
+            }
+            bidMax *= GetAmplify(prototype);
+        }
+        // start remark
         switch (BuyMethod)
         {
         case 0:
@@ -604,7 +927,9 @@ void AuctionHouseBot::addNewAuctionBuyerBotBid(Player *AHBplayer, AHBConfig *con
                 break;
             }
         }
-
+        bidMax *= GetAmplify(prototype);
+        // end remark
+        // Serayn本土化修改：修改价格评估方式（结束）
         // check some special items, and do recalculating to their prices
         switch (prototype->Class)
         {
@@ -709,6 +1034,7 @@ void AuctionHouseBot::addNewAuctionBuyerBotBid(Player *AHBplayer, AHBConfig *con
             CharacterDatabase.CommitTransaction(trans);
         }
     }
+    }*/
 }
 
 void AuctionHouseBot::Update()
@@ -1324,6 +1650,7 @@ void AuctionHouseBot::Initialize()
         sLog->outString("loaded %u orange items", uint32(orangeItemsBin.size()));
         sLog->outString("loaded %u yellow items", uint32(yellowItemsBin.size()));
     }
+    for (uint32 i = 0; i < 3; i++)TotalBids[i] = 0;
     sLog->outString("AuctionHouseBot and AuctionHouseBuyer have been loaded.");
 }
 
